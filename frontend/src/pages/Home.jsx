@@ -10,6 +10,8 @@ function Home() {
   const [error, setError] = useState(null);
   const [searchTime, setSearchTime] = useState(null);
   const [searchMetrics, setSearchMetrics] = useState(null);
+  // Add state for the full response
+const [response, setResponse] = useState(null);
 
   useEffect(() => {
     // Fetch search metrics on component mount
@@ -30,18 +32,19 @@ function Home() {
       setResults([]);
       return;
     }
-
+  
     setQuery(searchQuery);
     setLoading(true);
     setError(null);
-
+  
     try {
       const response = await api.get('/search', {
         params: { query: searchQuery }
       });
-
+  
       setResults(response.data.results);
       setSearchTime(response.data.time);
+      setResponse(response.data); // Store the full response for debugging
     } catch (err) {
       console.error('Search error:', err);
       setError('An error occurred while searching. Please try again.');
@@ -80,12 +83,25 @@ function Home() {
         </div>
       )}
 
-      {!loading && results.length === 0 && query && (
-        <div className="text-center my-8 p-6 bg-gray-100 rounded-lg">
-          <p className="text-lg text-gray-600">No documents found matching "{query}"</p>
-          <p className="text-sm text-gray-500 mt-2">Try using different keywords or simplifying your search</p>
-        </div>
-      )}
+{!loading && results.length === 0 && query && (
+  <div className="text-center my-8 p-6 bg-gray-100 rounded-lg">
+    <p className="text-lg text-gray-600">No documents found matching "{query}"</p>
+    <p className="text-sm text-gray-500 mt-2">Try using different keywords or simplifying your search</p>
+    
+    {/* Debug information */}
+    {response?.debug && (
+      <div className="mt-4 p-4 bg-gray-200 rounded text-left">
+        <h3 className="font-bold mb-2">Debug Information:</h3>
+        <p>Total Documents: {response.debug.totalDocuments}</p>
+        <p>Index Size: {response.debug.indexSize} terms</p>
+        <p>Processed Query Terms: {response.debug.queryTerms.join(', ')}</p>
+        <p>Matching Terms in Index: {response.debug.matchingTerms.join(', ')}</p>
+        <p>Total Results Before Filtering: {response.debug.totalResults}</p>
+        <p>Results After Filtering: {response.debug.filteredResults}</p>
+      </div>
+    )}
+  </div>
+)}
 
       {!loading && results.length > 0 && (
         <ResultsList results={results} query={query} />

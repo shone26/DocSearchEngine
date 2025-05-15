@@ -11,12 +11,14 @@ const stemmer = natural.PorterStemmer;
  */
 const processText = (text) => {
     if (!text) return [];
+    console.log('Processing text input length:', text.length);
 
     // Convert to lowercase
     const lowercaseText = text.toLowerCase();
 
     // Tokenize the text
     const tokens = tokenizer.tokenize(lowercaseText);
+    console.log(`Tokenized into ${tokens.length} tokens`);
 
     // Remove stop words and non-alphabetic tokens
     const stopWords = getStopWords();
@@ -26,8 +28,11 @@ const processText = (text) => {
         /^[a-zA-Z]+$/.test(token) //  Only keep alphabetic tokens
     );
 
+    console.log(`After filtering stop words: ${filteredTokens.length} tokens remain`);
+
     // Apply stemming
     const stemmedTokens = filteredTokens.map(token => stemmer.stem(token));
+    console.log('First 10 stemmed tokens:', stemmedTokens.slice(0, 10));
 
     return stemmedTokens;
 };

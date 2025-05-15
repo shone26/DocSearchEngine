@@ -52,6 +52,7 @@ const getDocumentsFromDb = () => {
  */
 const loadDocumentsFromFiles = async () => {
     const documentsDir = path.join(__dirname, '../data/documents');
+    console.log('Documents directory path:', documentsDir);
 
     // Create directory if it does not exist
     if (!fs.existsSync(documentsDir)) {
@@ -64,23 +65,38 @@ const loadDocumentsFromFiles = async () => {
 
     // Read all files in the directory
     const files = fs.readdirSync(documentsDir).filter(file => file.endsWith('.txt'));
+    console.log(`Found ${files.length} document files:`, files);
 
     for (const file of files) {
-        const filePath = path.join(documentsDir, file);
-        const content = fs.readFileSync(filePath, 'utf-8');
-        const title = file.replace('.txt', '');
+        try {
+            const filePath = path.join(documentsDir, file);
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const title = file.replace('.txt', '');
 
-        // Insert document into database
-        await insertDocument(title, content, filePath);
+            console.log(`Processing document: ${title} (${content.length} bytes)`);
 
-        // Process the document content
-        const terms = processText(content);
-        documentTerms[title] = terms;
-        documentContents[title] = content;
+            // Insert document into database
+            await insertDocument(title, content, filePath);
 
-        // Update the inverted index
-        updateInvertedIndex(title, terms);
+            // Process the document content
+            const terms = processText(content);
+            console.log(`Extracted ${terms.length} terms from document ${title}`);
+            documentTerms[title] = terms;
+            documentContents[title] = content;
+
+            // Update the inverted index
+            updateInvertedIndex(title, terms);
+            console.log(`Updated inverted index with document ${title}`);
+        } catch (error) {
+            console.error(`Error processing document ${file}:`, error);
+            // Continue with next document instead of failing
+        }
     }
+    // Log the final inverted index size
+    console.log(`Inverted index built with ${Object.keys(invertedIndex).length} unique terms.`);
+    // Log some sample terms from the index
+    const sampleTerms = Object.keys(invertedIndex).slice(0, 10);
+    console.log('Sample terms in index:', sampleTerms);
 };
 
 /**
@@ -90,28 +106,28 @@ const createSampleDocuments = () => {
     const documentsDir = path.join(__dirname, '../data/documents');
 
     // Sample document topics
-    const topics = [
-        'Introduction to Artificial Intelligence',
-        'Web Development Basics',
-        'Data Structures and Algorithms',
-        'Machine Learning Fundamentals',
-        'Database Systems Overview',
-        'Modern JavaScript Frameworks',
-        'Cloud Computing Services',
-        'Mobile App Development',
-        'Computer Networks',
-        'Cybersecurity Principles',
-        'Operating Systems Architecture',
-        'Software Engineering Practices',
-        'User Experience Design',
-        'Big Data Analytics',
-        'Internet of Things',
-        'Blockchain Technology',
-        'Quantum Computing',
-        'Augmented and Virtual Reality',
-        'Natural Language Processing',
-        'Robotics and Automation'
-    ];
+    // const topics = [
+    //     'Introduction to Artificial Intelligence',
+    //     'Web Development Basics',
+    //     'Data Structures and Algorithms',
+    //     'Machine Learning Fundamentals',
+    //     'Database Systems Overview',
+    //     'Modern JavaScript Frameworks',
+    //     'Cloud Computing Services',
+    //     'Mobile App Development',
+    //     'Computer Networks',
+    //     'Cybersecurity Principles',
+    //     'Operating Systems Architecture',
+    //     'Software Engineering Practices',
+    //     'User Experience Design',
+    //     'Big Data Analytics',
+    //     'Internet of Things',
+    //     'Blockchain Technology',
+    //     'Quantum Computing',
+    //     'Augmented and Virtual Reality',
+    //     'Natural Language Processing',
+    //     'Robotics and Automation'
+    // ];
 
     // Create sample content for each topic
     topics.forEach((topic, index) => {
@@ -160,33 +176,33 @@ const generateSampleContent = (topic) => {
  */
 const generateParagraphForTopic = (topic, paragraphIndex) => {
     // Keywords related to topics
-    const topicKeywords = {
-        'Introduction to Artificial Intelligence': ['machine learning', 'neural networks', 'expert systems', 'knowledge representation', 'problem solving', 'reasoning', 'perception', 'natural language understanding'],
-        'Web Development Basics': ['HTML', 'CSS', 'JavaScript', 'responsive design', 'frontend', 'backend', 'API', 'HTTP', 'DOM', 'frameworks'],
-        'Data Structures and Algorithms': ['arrays', 'linked lists', 'trees', 'graphs', 'sorting', 'searching', 'dynamic programming', 'complexity analysis', 'big O notation'],
-        'Machine Learning Fundamentals': ['supervised learning', 'unsupervised learning', 'reinforcement learning', 'classification', 'regression', 'clustering', 'overfitting', 'training data'],
-        'Database Systems Overview': ['SQL', 'NoSQL', 'relational databases', 'ACID properties', 'indexing', 'normalization', 'query optimization', 'transactions'],
-        'Modern JavaScript Frameworks': ['React', 'Angular', 'Vue', 'Node.js', 'Express', 'components', 'state management', 'routing', 'hooks', 'virtual DOM'],
-        'Cloud Computing Services': ['IaaS', 'PaaS', 'SaaS', 'public cloud', 'private cloud', 'hybrid cloud', 'scalability', 'AWS', 'Azure', 'Google Cloud'],
-        'Mobile App Development': ['native apps', 'hybrid apps', 'React Native', 'Flutter', 'iOS', 'Android', 'responsive design', 'app store', 'user experience'],
-        'Computer Networks': ['TCP/IP', 'OSI model', 'routing', 'switching', 'protocols', 'IP addressing', 'subnetting', 'network security', 'DNS'],
-        'Cybersecurity Principles': ['encryption', 'authentication', 'authorization', 'firewalls', 'penetration testing', 'vulnerability assessment', 'intrusion detection', 'security policies'],
-        'Operating Systems Architecture': ['kernel', 'process management', 'memory management', 'file systems', 'I/O systems', 'virtualization', 'scheduling algorithms', 'concurrency'],
-        'Software Engineering Practices': ['agile methodology', 'scrum', 'version control', 'continuous integration', 'testing', 'code review', 'design patterns', 'documentation'],
-        'User Experience Design': ['user research', 'wireframing', 'prototyping', 'usability testing', 'information architecture', 'interaction design', 'accessibility', 'user-centered design'],
-        'Big Data Analytics': ['Hadoop', 'Spark', 'data warehousing', 'data lakes', 'batch processing', 'stream processing', 'data visualization', 'ETL'],
-        'Internet of Things': ['sensors', 'actuators', 'connectivity', 'embedded systems', 'MQTT', 'edge computing', 'smart devices', 'IoT platforms'],
-        'Blockchain Technology': ['distributed ledger', 'cryptocurrencies', 'smart contracts', 'consensus algorithms', 'mining', 'tokens', 'decentralization', 'public and private keys'],
-        'Quantum Computing': ['qubits', 'superposition', 'entanglement', 'quantum gates', 'quantum algorithms', 'quantum supremacy', 'decoherence', 'quantum error correction'],
-        'Augmented and Virtual Reality': ['immersive experiences', 'mixed reality', 'AR glasses', 'VR headsets', '3D modeling', 'spatial computing', 'gesture recognition', 'haptic feedback'],
-        'Natural Language Processing': ['text classification', 'sentiment analysis', 'named entity recognition', 'machine translation', 'speech recognition', 'language modeling', 'text generation'],
-        'Robotics and Automation': ['robot kinematics', 'machine vision', 'autonomous systems', 'robot learning', 'human-robot interaction', 'industrial robots', 'drones', 'robot operating system']
-    };
+    // const topicKeywords = {
+    //     'Introduction to Artificial Intelligence': ['machine learning', 'neural networks', 'expert systems', 'knowledge representation', 'problem solving', 'reasoning', 'perception', 'natural language understanding'],
+    //     'Web Development Basics': ['HTML', 'CSS', 'JavaScript', 'responsive design', 'frontend', 'backend', 'API', 'HTTP', 'DOM', 'frameworks'],
+    //     'Data Structures and Algorithms': ['arrays', 'linked lists', 'trees', 'graphs', 'sorting', 'searching', 'dynamic programming', 'complexity analysis', 'big O notation'],
+    //     'Machine Learning Fundamentals': ['supervised learning', 'unsupervised learning', 'reinforcement learning', 'classification', 'regression', 'clustering', 'overfitting', 'training data'],
+    //     'Database Systems Overview': ['SQL', 'NoSQL', 'relational databases', 'ACID properties', 'indexing', 'normalization', 'query optimization', 'transactions'],
+    //     'Modern JavaScript Frameworks': ['React', 'Angular', 'Vue', 'Node.js', 'Express', 'components', 'state management', 'routing', 'hooks', 'virtual DOM'],
+    //     'Cloud Computing Services': ['IaaS', 'PaaS', 'SaaS', 'public cloud', 'private cloud', 'hybrid cloud', 'scalability', 'AWS', 'Azure', 'Google Cloud'],
+    //     'Mobile App Development': ['native apps', 'hybrid apps', 'React Native', 'Flutter', 'iOS', 'Android', 'responsive design', 'app store', 'user experience'],
+    //     'Computer Networks': ['TCP/IP', 'OSI model', 'routing', 'switching', 'protocols', 'IP addressing', 'subnetting', 'network security', 'DNS'],
+    //     'Cybersecurity Principles': ['encryption', 'authentication', 'authorization', 'firewalls', 'penetration testing', 'vulnerability assessment', 'intrusion detection', 'security policies'],
+    //     'Operating Systems Architecture': ['kernel', 'process management', 'memory management', 'file systems', 'I/O systems', 'virtualization', 'scheduling algorithms', 'concurrency'],
+    //     'Software Engineering Practices': ['agile methodology', 'scrum', 'version control', 'continuous integration', 'testing', 'code review', 'design patterns', 'documentation'],
+    //     'User Experience Design': ['user research', 'wireframing', 'prototyping', 'usability testing', 'information architecture', 'interaction design', 'accessibility', 'user-centered design'],
+    //     'Big Data Analytics': ['Hadoop', 'Spark', 'data warehousing', 'data lakes', 'batch processing', 'stream processing', 'data visualization', 'ETL'],
+    //     'Internet of Things': ['sensors', 'actuators', 'connectivity', 'embedded systems', 'MQTT', 'edge computing', 'smart devices', 'IoT platforms'],
+    //     'Blockchain Technology': ['distributed ledger', 'cryptocurrencies', 'smart contracts', 'consensus algorithms', 'mining', 'tokens', 'decentralization', 'public and private keys'],
+    //     'Quantum Computing': ['qubits', 'superposition', 'entanglement', 'quantum gates', 'quantum algorithms', 'quantum supremacy', 'decoherence', 'quantum error correction'],
+    //     'Augmented and Virtual Reality': ['immersive experiences', 'mixed reality', 'AR glasses', 'VR headsets', '3D modeling', 'spatial computing', 'gesture recognition', 'haptic feedback'],
+    //     'Natural Language Processing': ['text classification', 'sentiment analysis', 'named entity recognition', 'machine translation', 'speech recognition', 'language modeling', 'text generation'],
+    //     'Robotics and Automation': ['robot kinematics', 'machine vision', 'autonomous systems', 'robot learning', 'human-robot interaction', 'industrial robots', 'drones', 'robot operating system']
+    // };
 
 
     // Get keywords for the topic
     const keywords = topicKeywords[topic] || [];
-    
+
     // Select some keywords for this paragraph
     const selectedKeywords = [];
     for (let i = 0; i < 3; i++) {
@@ -195,7 +211,7 @@ const generateParagraphForTopic = (topic, paragraphIndex) => {
             selectedKeywords.push(keyword);
         }
     }
-    
+
     // Generate paragraph based on paragraph index
     let paragraph;
     switch (paragraphIndex) {
@@ -217,7 +233,7 @@ const generateParagraphForTopic = (topic, paragraphIndex) => {
         default:
             paragraph = `The impact of ${topic} on society cannot be overstated. From enhancing productivity through ${selectedKeywords[0]} to improving quality of life via ${selectedKeywords[1]}, the benefits are numerous and far-reaching.`;
     }
-    
+
     return paragraph;
 };
 
@@ -233,7 +249,7 @@ const insertDocument = (title, content, filePath) => {
         db.run(
             'INSERT INTO documents (title, content, path) VALUES (?, ?, ?)',
             [title, content, filePath],
-            function(err) {
+            function (err) {
                 if (err) {
                     reject(err);
                 } else {
@@ -252,7 +268,7 @@ const buildIndexFromDocuments = (documents) => {
     documents.forEach(doc => {
         const { title, content } = doc;
         const terms = processText(content);
-        
+
         documentTerms[title] = terms;
         documentContents[title] = content;
         updateInvertedIndex(title, terms);
@@ -267,14 +283,14 @@ const buildIndexFromDocuments = (documents) => {
 const updateInvertedIndex = (docId, terms) => {
     // Count term frequency in document
     const termFrequency = {};
-    
+
     terms.forEach(term => {
         if (!termFrequency[term]) {
             termFrequency[term] = 0;
         }
         termFrequency[term]++;
     });
-    
+
     // Update inverted index
     Object.keys(termFrequency).forEach(term => {
         if (!invertedIndex[term]) {

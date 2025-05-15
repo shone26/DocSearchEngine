@@ -15,26 +15,28 @@ const { db } = require('../config/db');
  */
 const search = async (query) => {
   try {
-    // Check cache first
-    const cachedResults = await checkCache(query);
-    if (cachedResults) {
-      console.log(`Retrieved results for "${query}" from cache`);
-      return JSON.parse(cachedResults);
-    }
-    
     console.log(`Searching for: "${query}"`);
     
     // Process the query text
     const queryTerms = processText(query);
+    console.log('Processed query terms:', queryTerms);
     
     if (queryTerms.length === 0) {
+      console.log('No valid query terms after processing. Returning empty results.');
       return [];
     }
     
     const invertedIndex = getInvertedIndex();
+    console.log(`Inverted index has ${Object.keys(invertedIndex).length} terms`);
+    
     const documentTerms = getDocumentTerms();
     const documentContents = getDocumentContents();
     const allDocuments = getAllDocuments();
+    console.log(`Total documents in collection: ${allDocuments.length}`);
+    
+    // Check which query terms exist in the index
+    const matchingTerms = queryTerms.filter(term => invertedIndex[term]);
+    console.log('Query terms found in index:', matchingTerms);
     
     // Initialize document scores
     const scores = {};
@@ -46,11 +48,13 @@ const search = async (query) => {
     queryTerms.forEach(term => {
       // Skip terms not in the index
       if (!invertedIndex[term]) {
+        console.log(`Term "${term}" not found in index, skipping`);
         return;
       }
       
       // Get documents containing this term
       const docsWithTerm = Object.keys(invertedIndex[term]);
+      console.log(`Term "${term}" found in ${docsWithTerm.length} documents`);
       
       docsWithTerm.forEach(doc => {
         // Calculate TF-IDF score for this term in this document
@@ -65,14 +69,12 @@ const search = async (query) => {
       });
     });
     
-    // Convert scores to array of results
-    const results = Object.entries(scores)
+    // Log all document scores for diagnosis
+    console.log('Document scores before filtering:', scores);
+    
+    // Convert scores to array of results, including all scores for debugging
+    let results = Object.entries(scores)
       .map(([docId, score]) => {
-        // Skip documents with zero score
-        if (score === 0) {
-          return null;
-        }
-        
         // Get document content
         const content = documentContents[docId];
         
@@ -86,14 +88,27 @@ const search = async (query) => {
           context
         };
       })
-      .filter(result => result !== null)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 10); // Limit to top 10 results
+      .sort((a, b) => b.score - a.score);
     
-    // Cache the results
-    await cacheResults(query, results);
+    // Log all results before filtering
+    console.log(`Total results before filtering: ${results.length}`);
     
-    return results;
+    // Apply filtering for actual results (not for debugging)
+    const filteredResults = results.filter(result => result.score > 0).slice(0, 10);
+    console.log(`Filtered results: ${filteredResults.length}`);
+    
+    return {
+      results: filteredResults,
+      debug: {
+        totalDocuments: allDocuments.length,
+        indexSize: Object.keys(invertedIndex).length,
+        queryTerms,
+        matchingTerms,
+        allScores: scores,
+        totalResults: results.length,
+        filteredResults: filteredResults.length
+      }
+    };
   } catch (error) {
     console.error('Error in search:', error);
     throw error;

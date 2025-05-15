@@ -17,18 +17,23 @@ const searchDocuments = async (req, res) => {
     }
     
     const startTime = Date.now();
-    const results = await search(query);
+    const searchResults = await search(query);
     const endTime = Date.now();
+    
+    // Extract actual results and debug info
+    const { results, debug } = searchResults;
     
     return res.json({
       results,
       count: results.length,
-      time: endTime - startTime
+      time: endTime - startTime,
+      debug: debug // Include debug info in response
     });
   } catch (error) {
     console.error('Error in search controller:', error);
     return res.status(500).json({ 
-      message: 'Error processing search request' 
+      message: 'Error processing search request',
+      error: error.message 
     });
   }
 };
