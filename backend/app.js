@@ -3,8 +3,8 @@ const cors = require('cors');
 const morgan = require('morgan');
 const documentRoutes = require('./routes/documentRoutes');
 const searchRoutes = require('./routes/searchRoutes');
-const { initializeDatabase } = require('./config/database');
-const { intializeIndex } = require('./services/indexService');
+const { initializeDatabase } = require('./config/db');
+const { initializeIndex } = require('./services/indexService');
 
 const app = express();
 
