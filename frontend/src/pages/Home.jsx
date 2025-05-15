@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import SearchBar from '../components/SearchBar';
 import ResultsList from '../components/ResultsList';
@@ -10,8 +11,9 @@ function Home() {
   const [error, setError] = useState(null);
   const [searchTime, setSearchTime] = useState(null);
   const [searchMetrics, setSearchMetrics] = useState(null);
-  // Add state for the full response
-const [response, setResponse] = useState(null);
+  // Add state for the full response and reindexing
+  const [response, setResponse] = useState(null);
+  const [reindexing, setReindexing] = useState(false);
 
   useEffect(() => {
     // Fetch search metrics on component mount
@@ -54,6 +56,27 @@ const [response, setResponse] = useState(null);
     }
   };
 
+  // Add reindex function
+  const handleReindex = async () => {
+    setReindexing(true);
+    try {
+      const response = await api.post('/search/reindex');
+      console.log('Reindexing response:', response.data);
+      
+      // Refresh metrics after reindexing
+      const metricsResponse = await api.get('/search/metrics');
+      setSearchMetrics(metricsResponse.data);
+      
+      // Show success message
+      alert(`Reindexing successful! ${response.data.documentCount} documents indexed.`);
+    } catch (err) {
+      console.error('Reindexing error:', err);
+      alert('An error occurred while reindexing documents.');
+    } finally {
+      setReindexing(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto">
       <div className="text-center mb-10">
@@ -83,25 +106,25 @@ const [response, setResponse] = useState(null);
         </div>
       )}
 
-{!loading && results.length === 0 && query && (
-  <div className="text-center my-8 p-6 bg-gray-100 rounded-lg">
-    <p className="text-lg text-gray-600">No documents found matching "{query}"</p>
-    <p className="text-sm text-gray-500 mt-2">Try using different keywords or simplifying your search</p>
-    
-    {/* Debug information */}
-    {response?.debug && (
-      <div className="mt-4 p-4 bg-gray-200 rounded text-left">
-        <h3 className="font-bold mb-2">Debug Information:</h3>
-        <p>Total Documents: {response.debug.totalDocuments}</p>
-        <p>Index Size: {response.debug.indexSize} terms</p>
-        <p>Processed Query Terms: {response.debug.queryTerms.join(', ')}</p>
-        <p>Matching Terms in Index: {response.debug.matchingTerms.join(', ')}</p>
-        <p>Total Results Before Filtering: {response.debug.totalResults}</p>
-        <p>Results After Filtering: {response.debug.filteredResults}</p>
-      </div>
-    )}
-  </div>
-)}
+      {!loading && results.length === 0 && query && (
+        <div className="text-center my-8 p-6 bg-gray-100 rounded-lg">
+          <p className="text-lg text-gray-600">No documents found matching "{query}"</p>
+          <p className="text-sm text-gray-500 mt-2">Try using different keywords or simplifying your search</p>
+          
+          {/* Debug information */}
+          {response?.debug && (
+            <div className="mt-4 p-4 bg-gray-200 rounded text-left">
+              <h3 className="font-bold mb-2">Debug Information:</h3>
+              <p>Total Documents: {response.debug.totalDocuments}</p>
+              <p>Index Size: {response.debug.indexSize} terms</p>
+              <p>Processed Query Terms: {response.debug.queryTerms.join(', ')}</p>
+              <p>Matching Terms in Index: {response.debug.matchingTerms.join(', ') || 'None'}</p>
+              <p>Total Results Before Filtering: {response.debug.totalResults}</p>
+              <p>Results After Filtering: {response.debug.filteredResults}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {!loading && results.length > 0 && (
         <ResultsList results={results} query={query} />
@@ -109,19 +132,28 @@ const [response, setResponse] = useState(null);
 
       {searchMetrics && (
         <div className="mt-12 p-4 bg-gray-100 rounded-lg">
-          <h2 className="text-xl font-semibold mb-2">System Information</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-blue-600">System Information</h2>
+            <button
+              onClick={handleReindex}
+              disabled={reindexing}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              {reindexing ? 'Reindexing...' : 'Re-index Documents'}
+            </button>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white p-4 rounded shadow">
-              <h3 className="text-lg font-medium">Documents</h3>
-              <p className="text-3xl font-bold">{searchMetrics.documentCount}</p>
+              <h3 className="text-lg font-medium text-blue-600">Documents</h3>
+              <p className="text-3xl font-bold text-gray-700">{searchMetrics.documentCount}</p>
             </div>
             <div className="bg-white p-4 rounded shadow">
-              <h3 className="text-lg font-medium">Index Size</h3>
-              <p className="text-3xl font-bold">{searchMetrics.indexSize} terms</p>
+              <h3 className="text-lg font-medium text-blue-600">Index Size</h3>
+              <p className="text-3xl font-bold text-gray-700">{searchMetrics.indexSize} terms</p>
             </div>
             <div className="bg-white p-4 rounded shadow">
-              <h3 className="text-lg font-medium">Cache Size</h3>
-              <p className="text-3xl font-bold">{searchMetrics.cacheSize} queries</p>
+              <h3 className="text-lg font-medium text-blue-600">Cache Size</h3>
+              <p className="text-3xl font-bold text-gray-700">{searchMetrics.cacheSize} queries</p>
             </div>
           </div>
         </div>

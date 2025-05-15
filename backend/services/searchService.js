@@ -1,3 +1,5 @@
+// backend/services/searchService.js
+
 const { processText } = require('../utils/textProcessor');
 const { tfidf } = require('../utils/tfidf');
 const { 
@@ -11,10 +13,17 @@ const { db } = require('../config/db');
 /**
  * Search for documents matching the query
  * @param {string} query - The search query
- * @returns {Promise<Array>} - Array of search results
+ * @returns {Promise<Object>} - Search results and debug info
  */
 const search = async (query) => {
   try {
+    // Check cache first
+    const cachedResults = await checkCache(query);
+    if (cachedResults) {
+      console.log(`Retrieved results for "${query}" from cache`);
+      return JSON.parse(cachedResults);
+    }
+    
     console.log(`Searching for: "${query}"`);
     
     // Process the query text
@@ -23,7 +32,18 @@ const search = async (query) => {
     
     if (queryTerms.length === 0) {
       console.log('No valid query terms after processing. Returning empty results.');
-      return [];
+      return {
+        results: [],
+        debug: {
+          totalDocuments: 0,
+          indexSize: 0,
+          queryTerms: [],
+          matchingTerms: [],
+          allScores: {},
+          totalResults: 0,
+          filteredResults: 0
+        }
+      };
     }
     
     const invertedIndex = getInvertedIndex();
@@ -72,8 +92,8 @@ const search = async (query) => {
     // Log all document scores for diagnosis
     console.log('Document scores before filtering:', scores);
     
-    // Convert scores to array of results, including all scores for debugging
-    let results = Object.entries(scores)
+    // Convert scores to array of results
+    let allResults = Object.entries(scores)
       .map(([docId, score]) => {
         // Get document content
         const content = documentContents[docId];
@@ -91,13 +111,17 @@ const search = async (query) => {
       .sort((a, b) => b.score - a.score);
     
     // Log all results before filtering
-    console.log(`Total results before filtering: ${results.length}`);
+    console.log(`Total results before filtering: ${allResults.length}`);
     
-    // Apply filtering for actual results (not for debugging)
-    const filteredResults = results.filter(result => result.score > 0).slice(0, 10);
+    // Apply filtering for actual results
+    const filteredResults = allResults
+      .filter(result => result.score > 0)
+      .slice(0, 10); // Limit to top 10 results
+      
     console.log(`Filtered results: ${filteredResults.length}`);
     
-    return {
+    // Prepare return value with results and debug info
+    const returnValue = {
       results: filteredResults,
       debug: {
         totalDocuments: allDocuments.length,
@@ -105,10 +129,15 @@ const search = async (query) => {
         queryTerms,
         matchingTerms,
         allScores: scores,
-        totalResults: results.length,
+        totalResults: allResults.length,
         filteredResults: filteredResults.length
       }
     };
+    
+    // Cache the results
+    await cacheResults(query, returnValue);
+    
+    return returnValue;
   } catch (error) {
     console.error('Error in search:', error);
     throw error;
@@ -203,7 +232,7 @@ const checkCache = (query) => {
 /**
  * Cache search results
  * @param {string} query - The search query
- * @param {Array} results - Search results
+ * @param {Object} results - Search results
  * @returns {Promise<void>}
  */
 const cacheResults = (query, results) => {

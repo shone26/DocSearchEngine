@@ -18,7 +18,7 @@ function SearchBar({ onSearch }) {
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-3 py-4 border border-gray-300 rounded-l-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 text-lg"
+            className="block w-full pl-10 pr-3 py-4 border border-gray-300 rounded-l-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 text-lg text-gray-500"
             placeholder="Search documents..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}

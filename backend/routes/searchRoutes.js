@@ -1,5 +1,7 @@
+// backend/routes/searchRoutes.js
+
 const express = require('express');
-const { searchDocuments, getMetrics } = require('../controllers/searchController');
+const { searchDocuments, getMetrics, reindexDocuments } = require('../controllers/searchController');
 
 const router = express.Router();
 
@@ -72,5 +74,28 @@ router.get('/', searchDocuments);
  *         description: Error retrieving search metrics
  */
 router.get('/metrics', getMetrics);
+
+/**
+ * @swagger
+ * /api/search/reindex:
+ *   post:
+ *     summary: Re-index all documents
+ *     description: Force re-indexing of all documents, including new files
+ *     responses:
+ *       200:
+ *         description: Documents indexed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 documentCount:
+ *                   type: integer
+ *       500:
+ *         description: Error during indexing
+ */
+router.post('/reindex', reindexDocuments);
 
 module.exports = router;

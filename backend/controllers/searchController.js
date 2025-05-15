@@ -1,4 +1,7 @@
+// backend/controllers/searchController.js
+
 const { search, getSearchMetrics } = require('../services/searchService');
+const { initializeIndex } = require('../services/indexService');
 
 /**
  * Handle search request
@@ -56,7 +59,34 @@ const getMetrics = async (req, res) => {
   }
 };
 
+/**
+ * Force reindexing of all documents
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>}
+ */
+const reindexDocuments = async (req, res) => {
+  try {
+    console.log('Manual reindexing requested');
+    await initializeIndex();
+    
+    const metrics = await getSearchMetrics();
+    
+    return res.json({
+      message: 'Documents successfully reindexed',
+      documentCount: metrics.documentCount
+    });
+  } catch (error) {
+    console.error('Error reindexing documents:', error);
+    return res.status(500).json({
+      message: 'Error reindexing documents',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   searchDocuments,
-  getMetrics
+  getMetrics,
+  reindexDocuments
 };

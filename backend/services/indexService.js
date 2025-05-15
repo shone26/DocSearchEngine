@@ -1,3 +1,5 @@
+// backend/services/indexService.js
+
 const fs = require('fs');
 const path = require('path');
 const { db } = require('../config/db');
@@ -15,17 +17,26 @@ const initializeIndex = async () => {
     console.log('Initializing inverted index...');
 
     try {
-        // First check if we have any documents in the database.
+        // Clear existing index data
+        invertedIndex = {};
+        documentTerms = {};
+        documentContents = {};
+        
+        // First load documents from the database
         const documents = await getDocumentsFromDb();
-
-        if (documents.length === 0) {
-            // if not, load from the filesystem
-            await loadDocumentsFromFiles();
-        } else {
-            // Otherwise build index from DB
+        if (documents.length > 0) {
+            console.log(`Found ${documents.length} documents in database`);
             buildIndexFromDocuments(documents);
         }
+        
+        // Also check for any new documents in the filesystem
+        console.log('Checking for new documents in filesystem...');
+        await loadNewDocumentsFromFiles();
+        
         console.log(`Inverted index built with ${Object.keys(invertedIndex).length} unique terms.`);
+        // Log some sample terms from the index
+        const sampleTerms = Object.keys(invertedIndex).slice(0, 10);
+        console.log('Sample terms in index:', sampleTerms);
     } catch (error) {
         console.error('Error initializing inverted index:', error);
     }
@@ -48,7 +59,95 @@ const getDocumentsFromDb = () => {
 };
 
 /**
+ * Get list of existing document titles from database
+ * @returns {Promise<Array>} - Array of document title objects
+ */
+const getExistingDocumentTitles = () => {
+    return new Promise((resolve, reject) => {
+        db.all('SELECT title FROM documents', (err, rows) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
+        });
+    });
+};
+
+/**
+ * Load new documents from files that don't exist in the database yet
+ */
+const loadNewDocumentsFromFiles = async () => {
+    const documentsDir = path.join(__dirname, '../data/documents');
+    console.log('Documents directory path:', documentsDir);
+
+    // Create directory if it does not exist
+    if (!fs.existsSync(documentsDir)) {
+        fs.mkdirSync(documentsDir, { recursive: true });
+        console.log('Document directory created:', documentsDir);
+    }
+
+    // Get list of existing document titles from database
+    const existingDocs = await getExistingDocumentTitles();
+    const existingTitles = new Set(existingDocs.map(doc => doc.title));
+    console.log('Existing document titles in database:', Array.from(existingTitles));
+
+    // Read all files in the directory (don't recurse into subdirectories)
+    const files = fs.readdirSync(documentsDir)
+        .filter(file => file.endsWith('.txt'));
+        
+    console.log(`Found ${files.length} document files in directory:`, files);
+
+    let newDocumentsAdded = 0;
+    
+    for (const file of files) {
+        try {
+            // Skip files that already exist in the database
+            if (existingTitles.has(file)) {
+                console.log(`Skipping existing document: ${file}`);
+                continue;
+            }
+            
+            const filePath = path.join(documentsDir, file);
+            
+            // Skip directories
+            if (fs.lstatSync(filePath).isDirectory()) {
+                console.log(`Skipping directory: ${filePath}`);
+                continue;
+            }
+            
+            const content = fs.readFileSync(filePath, 'utf-8');
+            console.log(`Processing new document: ${file} (${content.length} bytes)`);
+
+            // Insert document into database
+            await insertDocument(file, content, filePath);
+            newDocumentsAdded++;
+
+            // Process the document content
+            const terms = processText(content);
+            console.log(`Extracted ${terms.length} terms from document ${file}`);
+            documentTerms[file] = terms;
+            documentContents[file] = content;
+
+            // Update the inverted index
+            updateInvertedIndex(file, terms);
+            console.log(`Updated inverted index with document ${file}`);
+        } catch (error) {
+            console.error(`Error processing document ${file}:`, error);
+            // Continue with next document instead of failing
+        }
+    }
+    
+    console.log(`Added ${newDocumentsAdded} new documents to the index`);
+    
+    // Verify all documents were processed
+    const documentIds = Object.keys(documentTerms);
+    console.log(`Total documents indexed: ${documentIds.length}. Document IDs:`, documentIds);
+};
+
+/**
  * Load documents from files in the data directory.
+ * This function is used when database is empty.
  */
 const loadDocumentsFromFiles = async () => {
     const documentsDir = path.join(__dirname, '../data/documents');
@@ -58,183 +157,48 @@ const loadDocumentsFromFiles = async () => {
     if (!fs.existsSync(documentsDir)) {
         fs.mkdirSync(documentsDir, { recursive: true });
         console.log('Document directory created:', documentsDir);
-
-        // create some sample documents for testing
-        createSampleDocuments();
     }
 
-    // Read all files in the directory
-    const files = fs.readdirSync(documentsDir).filter(file => file.endsWith('.txt'));
-    console.log(`Found ${files.length} document files:`, files);
+    // Read all files in the directory (don't recurse into subdirectories)
+    const files = fs.readdirSync(documentsDir)
+        .filter(file => file.endsWith('.txt'));
+        
+    console.log(`Found ${files.length} document files in directory:`, files);
 
     for (const file of files) {
         try {
             const filePath = path.join(documentsDir, file);
+            
+            // Skip directories
+            if (fs.lstatSync(filePath).isDirectory()) {
+                console.log(`Skipping directory: ${filePath}`);
+                continue;
+            }
+            
             const content = fs.readFileSync(filePath, 'utf-8');
-            const title = file.replace('.txt', '');
-
-            console.log(`Processing document: ${title} (${content.length} bytes)`);
+            console.log(`Processing document: ${file} (${content.length} bytes)`);
 
             // Insert document into database
-            await insertDocument(title, content, filePath);
+            await insertDocument(file, content, filePath);
 
             // Process the document content
             const terms = processText(content);
-            console.log(`Extracted ${terms.length} terms from document ${title}`);
-            documentTerms[title] = terms;
-            documentContents[title] = content;
+            console.log(`Extracted ${terms.length} terms from document ${file}`);
+            documentTerms[file] = terms;
+            documentContents[file] = content;
 
             // Update the inverted index
-            updateInvertedIndex(title, terms);
-            console.log(`Updated inverted index with document ${title}`);
+            updateInvertedIndex(file, terms);
+            console.log(`Updated inverted index with document ${file}`);
         } catch (error) {
             console.error(`Error processing document ${file}:`, error);
             // Continue with next document instead of failing
         }
     }
-    // Log the final inverted index size
-    console.log(`Inverted index built with ${Object.keys(invertedIndex).length} unique terms.`);
-    // Log some sample terms from the index
-    const sampleTerms = Object.keys(invertedIndex).slice(0, 10);
-    console.log('Sample terms in index:', sampleTerms);
-};
-
-/**
- * Create sample documents for testing.
- */
-const createSampleDocuments = () => {
-    const documentsDir = path.join(__dirname, '../data/documents');
-
-    // Sample document topics
-    // const topics = [
-    //     'Introduction to Artificial Intelligence',
-    //     'Web Development Basics',
-    //     'Data Structures and Algorithms',
-    //     'Machine Learning Fundamentals',
-    //     'Database Systems Overview',
-    //     'Modern JavaScript Frameworks',
-    //     'Cloud Computing Services',
-    //     'Mobile App Development',
-    //     'Computer Networks',
-    //     'Cybersecurity Principles',
-    //     'Operating Systems Architecture',
-    //     'Software Engineering Practices',
-    //     'User Experience Design',
-    //     'Big Data Analytics',
-    //     'Internet of Things',
-    //     'Blockchain Technology',
-    //     'Quantum Computing',
-    //     'Augmented and Virtual Reality',
-    //     'Natural Language Processing',
-    //     'Robotics and Automation'
-    // ];
-
-    // Create sample content for each topic
-    topics.forEach((topic, index) => {
-        const fileName = `sample_doc_${index + 1}.txt`;
-        const filePath = path.join(documentsDir, fileName);
-
-        // Generate content with relevant keywords for the topic
-        const content = generateSampleContent(topic);
-
-        fs.writeFileSync(filePath, content);
-        console.log(`Sample document created: ${fileName}`);
-    });
-};
-
-/**
- * Generate sample content for a given topic.
- * @param {string} topic - The topic for which to generate content.
- */
-const generateSampleContent = (topic) => {
-    const paragraphs = [];
-
-    // Add topic as title
-    paragraphs.push(`# ${topic}\n`);
-
-    // First paragraph with introduction
-    paragraphs.push(`${topic} is an important area in computer science and technology. This document provides an overview of key concepts and applications in this field.`);
-
-    // Generate 2-5 paragraphs of content
-    const numParagraphs = 3 + Math.floor(Math.random() * 3);
-
-    for (let i = 0; i < numParagraphs; i++) {
-        const paragraph = generateParagraphForTopic(topic, i);
-        paragraphs.push(paragraph);
-    }
-
-    // Conclusion paragraph
-    paragraphs.push(`In conclusion, ${topic} continues to evolve and offers many exciting opportunities for research and application in various domains.`);
-    return paragraphs.join('\n\n');
-};
-
-/**
- * Generate a paragraph for a specific topic
- * @param {string} topic - The topic
- * @param {number} paragraphIndex - Index of the paragraph
- * @returns {string} - Generated paragraph
- */
-const generateParagraphForTopic = (topic, paragraphIndex) => {
-    // Keywords related to topics
-    // const topicKeywords = {
-    //     'Introduction to Artificial Intelligence': ['machine learning', 'neural networks', 'expert systems', 'knowledge representation', 'problem solving', 'reasoning', 'perception', 'natural language understanding'],
-    //     'Web Development Basics': ['HTML', 'CSS', 'JavaScript', 'responsive design', 'frontend', 'backend', 'API', 'HTTP', 'DOM', 'frameworks'],
-    //     'Data Structures and Algorithms': ['arrays', 'linked lists', 'trees', 'graphs', 'sorting', 'searching', 'dynamic programming', 'complexity analysis', 'big O notation'],
-    //     'Machine Learning Fundamentals': ['supervised learning', 'unsupervised learning', 'reinforcement learning', 'classification', 'regression', 'clustering', 'overfitting', 'training data'],
-    //     'Database Systems Overview': ['SQL', 'NoSQL', 'relational databases', 'ACID properties', 'indexing', 'normalization', 'query optimization', 'transactions'],
-    //     'Modern JavaScript Frameworks': ['React', 'Angular', 'Vue', 'Node.js', 'Express', 'components', 'state management', 'routing', 'hooks', 'virtual DOM'],
-    //     'Cloud Computing Services': ['IaaS', 'PaaS', 'SaaS', 'public cloud', 'private cloud', 'hybrid cloud', 'scalability', 'AWS', 'Azure', 'Google Cloud'],
-    //     'Mobile App Development': ['native apps', 'hybrid apps', 'React Native', 'Flutter', 'iOS', 'Android', 'responsive design', 'app store', 'user experience'],
-    //     'Computer Networks': ['TCP/IP', 'OSI model', 'routing', 'switching', 'protocols', 'IP addressing', 'subnetting', 'network security', 'DNS'],
-    //     'Cybersecurity Principles': ['encryption', 'authentication', 'authorization', 'firewalls', 'penetration testing', 'vulnerability assessment', 'intrusion detection', 'security policies'],
-    //     'Operating Systems Architecture': ['kernel', 'process management', 'memory management', 'file systems', 'I/O systems', 'virtualization', 'scheduling algorithms', 'concurrency'],
-    //     'Software Engineering Practices': ['agile methodology', 'scrum', 'version control', 'continuous integration', 'testing', 'code review', 'design patterns', 'documentation'],
-    //     'User Experience Design': ['user research', 'wireframing', 'prototyping', 'usability testing', 'information architecture', 'interaction design', 'accessibility', 'user-centered design'],
-    //     'Big Data Analytics': ['Hadoop', 'Spark', 'data warehousing', 'data lakes', 'batch processing', 'stream processing', 'data visualization', 'ETL'],
-    //     'Internet of Things': ['sensors', 'actuators', 'connectivity', 'embedded systems', 'MQTT', 'edge computing', 'smart devices', 'IoT platforms'],
-    //     'Blockchain Technology': ['distributed ledger', 'cryptocurrencies', 'smart contracts', 'consensus algorithms', 'mining', 'tokens', 'decentralization', 'public and private keys'],
-    //     'Quantum Computing': ['qubits', 'superposition', 'entanglement', 'quantum gates', 'quantum algorithms', 'quantum supremacy', 'decoherence', 'quantum error correction'],
-    //     'Augmented and Virtual Reality': ['immersive experiences', 'mixed reality', 'AR glasses', 'VR headsets', '3D modeling', 'spatial computing', 'gesture recognition', 'haptic feedback'],
-    //     'Natural Language Processing': ['text classification', 'sentiment analysis', 'named entity recognition', 'machine translation', 'speech recognition', 'language modeling', 'text generation'],
-    //     'Robotics and Automation': ['robot kinematics', 'machine vision', 'autonomous systems', 'robot learning', 'human-robot interaction', 'industrial robots', 'drones', 'robot operating system']
-    // };
-
-
-    // Get keywords for the topic
-    const keywords = topicKeywords[topic] || [];
-
-    // Select some keywords for this paragraph
-    const selectedKeywords = [];
-    for (let i = 0; i < 3; i++) {
-        const keyword = keywords[Math.floor(Math.random() * keywords.length)];
-        if (!selectedKeywords.includes(keyword)) {
-            selectedKeywords.push(keyword);
-        }
-    }
-
-    // Generate paragraph based on paragraph index
-    let paragraph;
-    switch (paragraphIndex) {
-        case 0:
-            paragraph = `One of the key aspects of ${topic} is understanding the fundamentals. This includes concepts such as ${selectedKeywords[0]} and ${selectedKeywords[1]}. These form the building blocks for more advanced topics in this field.`;
-            break;
-        case 1:
-            paragraph = `Applications of ${topic} can be found in various domains. For instance, ${selectedKeywords[0]} is widely used in industry for solving complex problems. Similarly, ${selectedKeywords[1]} and ${selectedKeywords[2]} have significant implications for how we approach modern technological challenges.`;
-            break;
-        case 2:
-            paragraph = `The evolution of ${topic} has been remarkable over the years. Recent advancements in ${selectedKeywords[0]} have pushed the boundaries of what's possible. Furthermore, the integration of ${selectedKeywords[1]} with other technologies has opened new avenues for innovation.`;
-            break;
-        case 3:
-            paragraph = `Challenges in ${topic} include addressing issues related to ${selectedKeywords[0]} and optimizing ${selectedKeywords[1]} for better performance. Researchers are actively working on overcoming these challenges to make the technology more robust and efficient.`;
-            break;
-        case 4:
-            paragraph = `Future trends in ${topic} point toward greater adoption of ${selectedKeywords[0]} and more sophisticated implementations of ${selectedKeywords[1]}. As technology continues to advance, we can expect to see novel applications that leverage the power of ${selectedKeywords[2]} in unprecedented ways.`;
-            break;
-        default:
-            paragraph = `The impact of ${topic} on society cannot be overstated. From enhancing productivity through ${selectedKeywords[0]} to improving quality of life via ${selectedKeywords[1]}, the benefits are numerous and far-reaching.`;
-    }
-
-    return paragraph;
+    
+    // Verify all documents were processed
+    const documentIds = Object.keys(documentTerms);
+    console.log(`Total documents indexed: ${documentIds.length}. Document IDs:`, documentIds);
 };
 
 /**
@@ -246,14 +210,18 @@ const generateParagraphForTopic = (topic, paragraphIndex) => {
  */
 const insertDocument = (title, content, filePath) => {
     return new Promise((resolve, reject) => {
+        console.log(`Inserting document into database: ${title}`);
+        
         db.run(
             'INSERT INTO documents (title, content, path) VALUES (?, ?, ?)',
             [title, content, filePath],
             function (err) {
                 if (err) {
+                    console.error(`Database insertion error for ${title}:`, err);
                     reject(err);
                 } else {
-                    resolve();
+                    console.log(`Document inserted successfully: ${title}, ID: ${this.lastID}`);
+                    resolve(this.lastID);
                 }
             }
         );
@@ -265,14 +233,31 @@ const insertDocument = (title, content, filePath) => {
  * @param {Array} documents - Array of document objects
  */
 const buildIndexFromDocuments = (documents) => {
+    console.log(`Building index from ${documents.length} database documents`);
+    
     documents.forEach(doc => {
-        const { title, content } = doc;
-        const terms = processText(content);
-
-        documentTerms[title] = terms;
-        documentContents[title] = content;
-        updateInvertedIndex(title, terms);
+        try {
+            const { id, title, content } = doc;
+            
+            console.log(`Processing database document: ${title} (ID: ${id})`);
+            
+            const terms = processText(content);
+            console.log(`Extracted ${terms.length} terms from document ${title}`);
+            
+            documentTerms[title] = terms;
+            documentContents[title] = content;
+            updateInvertedIndex(title, terms);
+            
+            console.log(`Updated inverted index with document ${title}`);
+        } catch (error) {
+            console.error(`Error processing database document:`, error);
+            // Continue processing other documents
+        }
     });
+    
+    // Verify multiple documents were processed
+    const documentIds = Object.keys(documentTerms);
+    console.log(`Processed ${documentIds.length} documents from database. Document IDs:`, documentIds);
 };
 
 /**
@@ -329,7 +314,9 @@ const getDocumentContents = () => {
  * @returns {string[]} - Array of document IDs
  */
 const getAllDocuments = () => {
-    return Object.keys(documentTerms);
+    const documentIds = Object.keys(documentTerms);
+    console.log(`getAllDocuments returning ${documentIds.length} document IDs:`, documentIds);
+    return documentIds;
 };
 
 module.exports = {

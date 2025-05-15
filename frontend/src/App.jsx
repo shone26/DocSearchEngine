@@ -14,7 +14,7 @@ function App() {
         </Routes>
       </main>
       <footer className="bg-gray-800 text-white text-center py-4">
-        <p>Document Retrieval System &copy; {new Date().getFullYear()}</p>
+        <p>Document Retrieval System </p>
       </footer>
     </div>
   );
