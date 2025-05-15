@@ -4,12 +4,10 @@
  * @param {string[]} document - The document as an array of terms
  * @returns {number} - Term frequency
  */
-
 const termFrequency = (term, document) => {
-    const termCount = document.fliter(word => word === term).length;
+    const termCount = document.filter(word => word === term).length; // Fixed typo: fliter -> filter
     return termCount / document.length;
-
-}
+};
 
 /**
  * Calculate Inverse Document Frequency (IDF)
@@ -17,16 +15,14 @@ const termFrequency = (term, document) => {
  * @param {Array<string[]>} documents - Array of documents (each document is an array of terms)
  * @returns {number} - IDF value
  */
-
 const inverseDocumentFrequency = (term, documents) => {
     const numDocumentsWithTerm = documents.filter(
         document => document.includes(term)
     ).length;
 
     return Math.log(documents.length / (1 + numDocumentsWithTerm)) + 1;
-
-    
 };
+
 /**
  * Calculate TF-IDF
  * @param {string} term - The term to calculate TF-IDF for
@@ -34,10 +30,8 @@ const inverseDocumentFrequency = (term, documents) => {
  * @param {Array<string[]>} documents - Array of documents (each document is an array of terms)
  * @returns {number} - TF-IDF score
  */
-
 const tfidf = (term, document, documents) => {
     return termFrequency(term, document) * inverseDocumentFrequency(term, documents);
-
 };
 
 module.exports = { termFrequency, inverseDocumentFrequency, tfidf };

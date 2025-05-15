@@ -1,5 +1,6 @@
 const natural = require('natural');
-const { get } = require('../app');
+// Remove this unnecessary import that's causing a circular dependency
+// const { get } = require('../app');
 const tokenizer = new natural.WordTokenizer();
 const stemmer = natural.PorterStemmer;
 
@@ -8,7 +9,6 @@ const stemmer = natural.PorterStemmer;
  * @param {string} text - The text to process.
  * @returns {Array} - An array of processed tokens.
  */
-
 const processText = (text) => {
     if (!text) return [];
 
@@ -22,25 +22,22 @@ const processText = (text) => {
     const stopWords = getStopWords();
     const filteredTokens = tokens.filter(token =>
         token.length > 2 && // Skip very short words
-        !stopWords.includes(token) && // Skip stop words
+        !stopWords.has(token) && // Changed from includes to has since it's a Set
         /^[a-zA-Z]+$/.test(token) //  Only keep alphabetic tokens
-
     );
 
     // Apply stemming
     const stemmedTokens = filteredTokens.map(token => stemmer.stem(token));
 
     return stemmedTokens;
-
 };
 
 /**
  * Get set of stop words.
- * @returns {Array} - An array of stop words.
+ * @returns {Set} - A set of stop words.
  */
-
 const getStopWords = () => {
-    const commonnStopWords = [
+    const commonStopWords = [
         'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'as', 'at',
         'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by',
         'could', 'did', 'do', 'does', 'doing', 'down', 'during',
@@ -57,7 +54,7 @@ const getStopWords = () => {
         'you', 'your', 'yours', 'yourself', 'yourselves'
     ];
 
-    return new Set(commonnStopWords);
+    return new Set(commonStopWords);
 };
 
 module.exports = { processText };
