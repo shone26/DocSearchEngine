@@ -1,0 +1,79 @@
+Python Data Analysis with Pandas
+Pandas is a powerful Python library for data manipulation and analysis. It's particularly well-suited for working with tabular data like CSV files, Excel spreadsheets, or SQL queries.
+Basic Data Structures
+Pandas has two primary data structures:
+Series
+A Series is a one-dimensional labeled array that can hold any data type:
+pythonimport pandas as pd
+
+# Create a Series
+s = pd.Series([1, 3, 5, np.nan, 6, 8])
+print(s)
+DataFrame
+A DataFrame is a two-dimensional labeled data structure with columns of potentially different types:
+python# Create a DataFrame
+data = {
+    'Name': ['John', 'Anna', 'Peter', 'Linda'],
+    'Age': [28, 34, 29, 42],
+    'City': ['New York', 'Paris', 'Berlin', 'London']
+}
+
+df = pd.DataFrame(data)
+print(df)
+Reading Data
+Pandas can read data from various sources:
+python# Read CSV
+df_csv = pd.read_csv('data.csv')
+
+# Read Excel
+df_excel = pd.read_excel('data.xlsx', sheet_name='Sheet1')
+
+# Read SQL query
+import sqlite3
+conn = sqlite3.connect('database.db')
+df_sql = pd.read_sql_query("SELECT * FROM employees", conn)
+Data Manipulation
+Pandas offers powerful data manipulation capabilities:
+Filtering
+python# Filter rows
+adults = df[df['Age'] > 18]
+
+# Filter with multiple conditions
+adults_in_nyc = df[(df['Age'] > 18) & (df['City'] == 'New York')]
+Grouping and Aggregation
+python# Group by and calculate statistics
+city_stats = df.groupby('City').agg({
+    'Age': ['mean', 'min', 'max', 'count']
+})
+
+# Pivot tables
+pivot = df.pivot_table(
+    values='Age', 
+    index='City',
+    columns='Gender',
+    aggfunc='mean'
+)
+Joining Data
+python# Merge DataFrames (similar to SQL join)
+merged_df = pd.merge(df1, df2, on='common_column', how='inner')
+Data Visualization
+Pandas integrates with matplotlib for data visualization:
+pythonimport matplotlib.pyplot as plt
+
+# Bar chart
+df.groupby('City')['Age'].mean().plot(kind='bar')
+plt.title('Average Age by City')
+plt.ylabel('Age')
+plt.savefig('city_age_chart.png')
+Time Series Analysis
+Pandas excels at time series analysis:
+python# Create a DatetimeIndex
+dates = pd.date_range('20230101', periods=6)
+df = pd.DataFrame(np.random.randn(6, 4), index=dates, columns=list('ABCD'))
+
+# Resample data
+monthly = df.resample('M').mean()
+
+# Rolling window calculations
+rolling_mean = df.rolling(window=3).mean()
+Pandas is an essential tool for data scientists and analysts working with Python, providing efficient data structures and data analysis tools that make data exploration and preparation much easier.

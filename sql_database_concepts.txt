@@ -1,0 +1,49 @@
+SQL Database Concepts
+SQL (Structured Query Language) is a domain-specific language used in programming and designed for managing data held in a relational database management system (RDBMS).
+Basic SQL Commands
+SELECT
+The SELECT statement is used to select data from a database:
+sql-- Select all columns from a table
+SELECT * FROM customers;
+
+-- Select specific columns
+SELECT first_name, last_name, email FROM customers;
+
+-- Select with a WHERE clause
+SELECT * FROM customers WHERE country = 'USA';
+INSERT
+The INSERT statement is used to insert new records in a table:
+sqlINSERT INTO customers (first_name, last_name, email, country)
+VALUES ('John', 'Doe', 'john.doe@example.com', 'USA');
+UPDATE
+The UPDATE statement is used to modify existing records:
+sqlUPDATE customers
+SET email = 'john.new@example.com'
+WHERE customer_id = 1;
+DELETE
+The DELETE statement is used to delete existing records:
+sqlDELETE FROM customers
+WHERE customer_id = 1;
+Joins
+SQL joins are used to combine rows from two or more tables:
+INNER JOIN
+Returns records that have matching values in both tables:
+sqlSELECT orders.order_id, customers.first_name
+FROM orders
+INNER JOIN customers ON orders.customer_id = customers.customer_id;
+LEFT JOIN
+Returns all records from the left table, and the matched records from the right table:
+sqlSELECT customers.first_name, orders.order_id
+FROM customers
+LEFT JOIN orders ON customers.customer_id = orders.customer_id;
+RIGHT JOIN
+Returns all records from the right table, and the matched records from the left table:
+sqlSELECT customers.first_name, orders.order_id
+FROM customers
+RIGHT JOIN orders ON customers.customer_id = orders.customer_id;
+Indexing
+Indexes are used to retrieve data from the database more quickly. Users can't see the indexes, they're just used to speed up searches/queries:
+sql-- Create an index on a table
+CREATE INDEX idx_lastname
+ON customers (last_name);
+Proper index design is critical for database performance optimization.
